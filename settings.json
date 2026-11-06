@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "settings": [
+    {
+      "key": "cluster_status_trial",
+      "type": "toggle",
+      "default": false,
+      "apply": "restart",
+      "title": "Legacy cluster status trial",
+      "description": "Send the original DiPO cluster start and stop status during valid CarPlay route guidance. Turn off and restart if factory navigation does not return."
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+/dist/
+/build/
+*.key
+*.key.pub
+*.class
+*.log
+.DS_Store
