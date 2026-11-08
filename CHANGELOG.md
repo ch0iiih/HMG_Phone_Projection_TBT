@@ -1,4 +1,28 @@
-# 변경 내역
+# Changelog / 변경 내역
+
+## English overview · 0.1.45
+
+Phone Projection TBT is the new project/mod name. CarPlay uses a shared wired/wireless receiver; Android Auto TBT is planned and is not implemented. Existing ID and signer remain compatible. New log name: `phone-projection-tbt.log`.
+
+Since public 0.1.41: corrected composite lane shapes and per-direction colors, added guarded factory pocket markers, updated highway facility mappings, improved USB diagnostics, and introduced an unverified alternative service-area icon. Overpass/underpass and unprotected-turn attributes are not guessed when absent. Latest rendering changes remain under vehicle verification. See the bilingual [0.1.45 release notes](RELEASE-v0.1.45.md).
+
+## 0.1.45 · 2026-11-09 · Phone Projection TBT
+
+- 프로젝트·모드 표시 이름과 패키지 파일명을 Phone Projection TBT로 변경했습니다.
+- 유선·무선 CarPlay를 포함하는 설명으로 정리하고 Android Auto TBT는 지원 예정으로 명시했습니다.
+- 진입 클래스와 Java 네임스페이스를 projection / projection.carplay로 정리했습니다.
+- 새 USB 로그 이름은 `phone-projection-tbt.log`입니다.
+- 기존 설치의 모드 ID, 서명자와 설정 키는 유지합니다.
+- 0.1.44의 차선·시설 표시 동작을 유지합니다.
+
+## 0.1.42–0.1.44 · 로컬 시험 빌드
+
+- 순정 리소스와 주행 로그를 기준으로 차선별 색상 및 복합 화살표를 수정했습니다.
+- 좌회전·유턴 차선은 같은 주행에서 확보한 순정 조합을 적용했습니다.
+- 최신 순정 데이터의 차선 수·방향이 일치할 때 포켓 차선 표시를 보완합니다.
+- 휴게소 진출 도식 대신 대체 순정 코드 181을 시험 적용합니다. 단독 심볼인지는 실차 미확인입니다.
+- 구분 정보가 없는 고가·지하차도와 비보호 좌회전은 임의로 추정하지 않습니다.
+- USB 로그 수집에서 차량에 없는 tail 명령 의존성을 제거했습니다.
 
 ## 0.1.41 · 2026-11-08 · 시험판
 

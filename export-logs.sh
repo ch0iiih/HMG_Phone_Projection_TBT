@@ -1,6 +1,6 @@
 #!/system/bin/sh
 umask 077
-history_dir=/data/hmgapi/logs/wired-tbt-capture
+history_dir=/data/hmgapi/logs/phone-projection-tbt-capture
 capture_pid=
 if mkdir -p "$history_dir"; then
     logcat -v threadtime -f "$history_dir/capture.log" -r 2048 -n 5 -s HMG-API:I '*:S' &
@@ -19,8 +19,8 @@ while true; do
         case "$folder" in /storage/usb[012]/TBT-LOGS) ;; *) continue ;; esac
         case " $last_folders " in *" $folder "*) continue ;; esac
 
-        tmp="$folder/.wired-carplay-tbt.log.part"
-        log="$folder/wired-carplay-tbt.log"
+        tmp="$folder/.phone-projection-tbt.log.part"
+        log="$folder/phone-projection-tbt.log"
         capture_tmp="$folder/.stock-guidance.log.part"
         if {
             echo "build=$(getprop ro.build.product)"
@@ -36,13 +36,14 @@ while true; do
             for history in /data/hmgapi/logs/hmgapi/log.log.1 /data/hmgapi/logs/hmgapi/log.log; do
                 [ -r "$history" ] || continue
                 grep -F '[wired-carplay-tbt-lx2pe]' "$history" |
-                    grep -E ' turn index=|cluster path no icon|guidance source=|cluster path clear sent|Native display updateTBTInfo first=|Native display updateTPCrossroadName.*Text=true|Stock guidance |lane detail |lane frame |Native display updateLaneInfo.*frame=' |
-                    tail -n 6000
+                    grep -E ' turn index=|cluster path no icon|guidance source=|cluster path clear sent|Native display updateTBTInfo first=|Native display updateTPCrossroadName.*Text=true|Stock guidance |pocket markers merged |Factory pocket hint |lane detail |lane input root |maneuver input |lane frame |Native display updateLaneInfo.*frame='
             done
             echo 'finished=1'
         } > "$tmp" && mv "$tmp" "$log" && {
             echo "captured=$(date)"
-            for history in "$history_dir"/capture.log.5 "$history_dir"/capture.log.4 \
+            # Include the previous capture directory during the name migration.
+            for history in /data/hmgapi/logs/wired-tbt-capture/capture.log.* /data/hmgapi/logs/wired-tbt-capture/capture.log \
+                    "$history_dir"/capture.log.5 "$history_dir"/capture.log.4 \
                     "$history_dir"/capture.log.3 "$history_dir"/capture.log.2 \
                     "$history_dir"/capture.log.1 "$history_dir"/capture.log; do
                 [ -r "$history" ] || continue
@@ -50,6 +51,18 @@ while true; do
             done
             echo 'finished=1'
         } > "$capture_tmp" && mv "$capture_tmp" "$folder/stock-guidance.log"; then
+            reference="$folder/cluster-reference"
+            if mkdir -p "$reference"; then
+                for source in /system/framework/automotive.odex /system/framework/automotive.jar; do
+                    [ -r "$source" ] || continue
+                    name="${source##*/}"
+                    if cat "$source" > "$reference/.$name.part"; then
+                        mv "$reference/.$name.part" "$reference/$name"
+                    else
+                        rm "$reference/.$name.part" 2>/dev/null
+                    fi
+                done
+            fi
             sync
             echo "Exported TBT logs to $log"
         else

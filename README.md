@@ -1,39 +1,64 @@
 # HMG Phone Projection TBT
 
-폰 프로젝션의 길안내를 계기판과 HUD에 표시하는 HMG-API 커뮤니티 모드입니다. 현재·다음 회전, 목적지까지 남은 거리, 내비 앱이 보내는 추천 차선을 표시합니다.
+[English](README.md) · [한국어](README.ko.md)
 
-## 지원 차량과 국가
+An HMG-API community mod that sends phone navigation guidance to the instrument cluster: current and next turns, remaining trip distance, and lane guidance supplied by the navigation app. HUD output depends on the vehicle; the instrument cluster is the physically tested display on the vehicle listed below.
 
-| 국가 | 차량 | 내비게이션 펌웨어 | 상태 |
-| --- | --- | --- | --- |
-| 대한민국 (KOR) | 현대 팰리세이드 2023년식 LX2 PE, 순정 Gen5W | `LX2PE.KOR.0000.V039.001.260902` | CarPlay 및 네이버 지도에서 실차 시험 |
+## Projection support
 
-일반 안내와 회전교차로는 이전 버전에서 실차 확인했습니다. 현재 공개 시험판은 **0.1.41**입니다. 차선별 화살표에 회색(경로에 맞지 않는 방향), 흰색(주행 가능한 방향), 파란색(추천 방향)을 나누어 보내도록 수정했습니다. 실제 수신 로그를 이용한 검증과 패키지 서명 검증을 통과했으며, 0.1.41의 실차 표시는 재확인 중입니다. 좌측 고속도로 진입 안내는 표시 가능한 좌측 분기 화살표로 대체합니다. 고가차도·옆길의 일부 그림 번호는 시험 적용 중이고, 휴게소 전용 그림 표시는 미해결입니다. 다른 국가·차종·펌웨어의 호환성은 미확인입니다.
+| Connection | Status |
+| --- | --- |
+| Wired CarPlay | Implemented and tested with NAVER Map |
+| Wireless CarPlay | Uses the same CarPlay guidance listener; the development vehicle has moved to wireless CarPlay. Verification of the latest display changes is ongoing. |
+| Android Auto TBT | **Planned, not implemented in this release** |
 
-## 설치
+This mod does not enable wireless phone projection itself. Wireless CarPlay must already work on the head unit, through a separate compatible setup or an adapter.
 
-1. 차량에 [HMG-API](https://github.com/VysseCodes/HMG-API) 1.0.2 이상을 설치하고, 앱에서 해당 차량의 맵이 검사되어 **Hooks on (map checked)** 상태인지 확인합니다.
-2. [0.1.41 시험판 설치 ZIP](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/raw/refs/heads/main/packages/wired-carplay-tbt-lx2pe-0.1.41.zip)을 받아 USB의 `HMGAPI/updates/`에 복사합니다. ZIP은 압축을 푼 상태로 설치할 수 없습니다.
-3. 정차 상태에서 USB를 차량에 연결하고 HMG-API 앱의 **Check USB updates → Apply changes → Restart Unit**을 실행합니다. 처음 설치할 때 서명자 확인 화면이 나오면 아래 UUID와 대조합니다.
-4. iPhone을 AVN에 데이터 케이블로 연결하고 길안내를 시작합니다. 네이버 지도에서는 CarPlay의 HUD 연동을 켜고, 계기판에서 길안내 화면을 선택합니다.
-5. 되돌리려면 HMG-API **Mods**에서 이 모드를 끄거나 제거하고 변경 사항을 적용한 뒤 AVN을 재시작합니다.
+## Tested vehicle and region
 
-이전 공개 버전은 [릴리스](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/releases)에서 받을 수 있습니다. 0.1.41 변경 내역은 [CHANGELOG.md](CHANGELOG.md)에 있습니다.
+| Region | Vehicle | AVN software |
+| --- | --- | --- |
+| Korea (KOR) | 2023 Hyundai Palisade LX2 PE, factory Gen5W | `LX2PE.KOR.0000.V039.001.260902` |
 
-릴리스 서명자 UUID `9c567984-70b6-83c8-a27d-10230586e0df`
+Other regions, vehicles, clusters and firmware versions are unverified. General turns and roundabouts have been observed in earlier builds. Version **0.1.45 is a prerelease**: recent lane changes and the alternative service-area icon still need vehicle verification. Grade-separated-road and unprotected-turn attributes cannot be reconstructed when the phone only sends a generic maneuver.
 
-## 차종별 제보
+## Installation
 
-[GitHub Issues](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/issues/new)에 제목을 `[국가 / 차종 코드 / 펌웨어] 증상`으로 작성해 주세요. 현재 지원 범위 밖의 차량은 모델과 펌웨어를 먼저 제보해 주세요.
+Requires [HMG-API](https://github.com/VysseCodes/HMG-API) **1.0.2 or later** and **Hooks on (map checked)** for your vehicle.
 
-- 국가, 차종·연식, 차량 코드, AVN 소프트웨어 전체 버전
-- HMG-API·모드 버전, iOS·지도 앱 버전, iPhone 직접 연결 또는 어댑터 여부
-- 기대한 표시와 실제 표시, 재현 순서, 대략적인 발생 시각
-- USB 루트에 빈 `TBT-LOGS` 폴더를 만든 뒤 정차해서 차량에 꽂아 주세요. `TBT-LOGS/wired-carplay-tbt.log`와 순정 안내 수집 파일인 `TBT-LOGS/stock-guidance.log`에서 관련 부분을 첨부할 수 있습니다. 로그는 USB를 차량에 다시 연결할 때 저장됩니다. 0.1.41은 진단용으로 내비 내부 전달 데이터와 안내 문구도 기록하며, 회전하는 로그 파일에 최근 기록을 보관합니다. 공개 전에 차대번호, 주소, 기기 식별자 등 개인 정보를 가려 주세요.
+- **First installation:** use the NEMESIS installer ZIP from [v0.1.45](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/releases/tag/v0.1.45), with HMG-API already installed.
+- **Update an existing TBT installation:** copy `phone-projection-tbt-0.1.45.zip` to the USB drive's `HMGAPI/updates/` folder without extracting it. Remove previous TBT update ZIPs. In HMG-API select **Check USB updates → Apply changes → Restart Unit** while parked.
 
-## 개발 및 라이선스
+Connect the iPhone using wired or already-working wireless CarPlay and start navigation. For NAVER Map, enable its CarPlay HUD integration and select the navigation page on the cluster.
 
-[빌드 방법](BUILD.md)을 참고하세요. 차량 전용 변경과 가드 소스는 `src/`와 `native/`에 있습니다.
+The displayed name is now **Phone Projection TBT**. The legacy internal mod ID and author signature are unchanged, so the existing installation updates in place. To roll back, disable or remove the mod in HMG-API and apply changes, then restart the head unit.
 
-[GNU AGPL-3.0](LICENSE). [HMG-API](https://github.com/VysseCodes/HMG-API)의 Wireless CarPlay + Android Auto 모드에서 길안내 코드를 가져와 유선 CarPlay와 대상 차량에 맞게 수정했습니다.
+## Lane display
 
+- **Gray:** direction does not follow the route.
+- **White:** usable direction that follows the route.
+- **Blue:** preferred direction recommended by the navigation app.
+
+Composite arrows keep their separate direction colors. Factory pocket-lane markers are copied only when fresh factory data has matching lane count and compatible directions; phone arrows and recommendations stay unchanged.
+
+## Known limitations
+
+- Service-area display code 183 was physically observed as an exit diagram. The alternative native code 181 is under test; a standalone service-area symbol is **not yet confirmed**.
+- Overpass, underpass and side-road symbols require distinguishable received data. Some NAVER Map screen graphics are not represented in the logged CarPlay maneuver fields.
+- Unprotected left turns remain ordinary left turns when no corresponding attribute is received.
+- Android Auto TBT is a future implementation, not a feature enabled by this project rename.
+
+## Report another vehicle or a problem
+
+Open a [GitHub issue](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/issues/new) titled `[region / vehicle code / firmware] symptom`, and include:
+
+- Vehicle, model year, region, cluster type and complete AVN firmware version.
+- HMG-API/mod/iOS/navigation-app versions, and wired/native-wireless/adapter connection type.
+- Expected and actual behavior, reproduction steps, and the time of the event.
+- Logs and, if useful, a photo with the capture time. Create `TBT-LOGS` at the USB root and reconnect the drive to export `phone-projection-tbt.log` and `stock-guidance.log`. Logs may include route text and location; redact personal data before posting.
+
+## Development
+
+See [BUILD.md](BUILD.md) and [CHANGELOG.md](CHANGELOG.md). Android Auto will need its own guidance receiver/conversion path before sharing cluster output functionality.
+
+Licensed under [AGPL-3.0](LICENSE). CarPlay guidance code derives from the Wireless CarPlay + Android Auto mod in [HMG-API](https://github.com/VysseCodes/HMG-API).

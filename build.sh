@@ -27,7 +27,7 @@ cp -R recipes "$tmp/mod/"
 java -cp "$tmp/runtime" hmgapi.engine.Signing sign "$tmp/mod" "$SIGNING_KEY"
 java -cp "$tmp/runtime" hmgapi.engine.Signing verify "$tmp/mod"
 version=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' mod.json)
-archive="$root/dist/wired-carplay-tbt-lx2pe-$version.zip"
+archive="$root/dist/phone-projection-tbt-$version.zip"
 (cd "$tmp/mod" && find . -type f | LC_ALL=C sort | zip -q -X -D "$tmp/package.zip" -@)
 mv "$tmp/package.zip" "$archive"
 printf '%s\n' "$archive"
