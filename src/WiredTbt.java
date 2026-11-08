@@ -53,6 +53,7 @@ public final class WiredTbt extends ModEntry {
                 Bridge.hookMethod(method, new MethodHook() {
                     private boolean suppressionLogged;
                     private boolean leaseReadFailed;
+                    private boolean roadTraceFailed;
 
                     @Override
                     protected void beforeHookedMethod(Param p) {
@@ -89,11 +90,26 @@ public final class WiredTbt extends ModEntry {
                     @Override
                     protected synchronized void afterHookedMethod(Param p) {
                         String detail = "";
-                        if (name.equals("updateTBTSubInfo2C") && arity == 9) {
+                        if (name.equals("updateLaneInfo") && arity == 1 && p.args[0] instanceof byte[]) {
+                            detail = " frame=" + java.util.Arrays.toString((byte[]) p.args[0]);
+                        } else if (name.equals("updateTBTSubInfo2C") && arity == 9) {
                             detail = " slots=" + java.util.Arrays.toString(p.args);
                         } else if (trip) {
                             detail = " args=" + arity + " distance=" + p.args[0]
                                     + " distanceErr=" + p.args[1] + " unit=" + p.args[2];
+                        } else if (name.equals("updateTPCrossroadName") && arity == 1 && p.args[0] != null) {
+                            try {
+                                String road = (String) Points.field(null, "framework.crossroad_name.name").get(p.args[0]);
+                                if (road != null) {
+                                    detail = " underpassText=" + road.contains("지하차도")
+                                            + " overpassText=" + road.contains("고가차도")
+                                            + " restText=" + (road.contains("휴게소") || road.contains("졸음쉼터"))
+                                            + " tollText=" + (road.contains("요금소") || road.contains("톨게이트"));
+                                }
+                            } catch (Exception e) {
+                                if (!roadTraceFailed) mod.error("Native crossroad trace", e);
+                                roadTraceFailed = true;
+                            }
                         } else if ((name.equals("updateTBTInfo") || !name.startsWith("update"))
                                 && p.args.length > 0
                                 && (p.args[0] instanceof Number || p.args[0] instanceof Boolean)) {
@@ -112,6 +128,77 @@ public final class WiredTbt extends ModEntry {
                 mod.error("Native display trace unavailable " + name, e);
             }
         }
+    }
+
+    private void observeStockGuidance(final ModContext mod, LoadedApp app) {
+        try {
+            Class<?> nativeCall = Hooks.findClass("com.mnsoft.navi.NativeCall", app.classLoader);
+            for (final Method method : nativeCall.getDeclaredMethods()) {
+                final String name = method.getName();
+                if (!name.equals("sendClusterData") && !name.equals("sendClusterParser")
+                        && !name.equals("sendNaviInsideData") && !name.equals("sendNaviInsideDataByte")
+                        && !name.equals("sendNaviInsideDataSub")) continue;
+                final boolean parser = name.equals("sendClusterParser");
+                Class<?>[] types = method.getParameterTypes();
+                if (parser) {
+                    if (!java.util.Arrays.equals(types, new Class<?>[]{byte[].class, int.class})) continue;
+                } else {
+                    if (types.length < 1 || types[0] != int.class) continue;
+                    boolean arrays = true;
+                    for (int i = 1; i < types.length; i++) if (!types[i].isArray()) arrays = false;
+                    if (!arrays) continue;
+                }
+                Bridge.hookMethod(method, new MethodHook() {
+                    private final java.util.Map<Integer, String> previous = new java.util.HashMap<>();
+                    private final java.util.Map<Integer, Long> sampled = new java.util.HashMap<>();
+
+                    @Override
+                    protected synchronized void beforeHookedMethod(Param p) {
+                        int type = (Integer) p.args[parser ? 1 : 0];
+                        long now = android.os.SystemClock.elapsedRealtime();
+                        Long last = sampled.get(type);
+                        if (last != null && now - last < 500) return;
+                        String value = guidanceSnapshot(p.args);
+                        if (value.equals(previous.get(type))) return;
+                        if (previous.size() >= 128 && !previous.containsKey(type)) {
+                            previous.clear();
+                            sampled.clear();
+                        }
+                        previous.put(type, value);
+                        sampled.put(type, now);
+                        mod.log("Stock guidance " + name + " type=" + type + " args=" + value);
+                    }
+                });
+                mod.log("Stock guidance capture ready " + name);
+            }
+        } catch (RuntimeException e) {
+            mod.error("Stock guidance capture unavailable", e);
+        }
+    }
+
+    private static String guidanceSnapshot(Object[] args) {
+        StringBuilder out = new StringBuilder();
+        for (Object arg : args) {
+            if (out.length() > 0) out.append(' ');
+            if (arg == null || !arg.getClass().isArray()) {
+                out.append(String.valueOf(arg));
+                continue;
+            }
+            int length = java.lang.reflect.Array.getLength(arg);
+            out.append("array(").append(length).append(")[");
+            for (int i = 0; i < length && i < 128; i++) {
+                if (i > 0) out.append(',');
+                String value = String.valueOf(java.lang.reflect.Array.get(arg, i));
+                out.append(value.length() > 240 ? value.substring(0, 240) + "..." : value);
+                if (out.length() > 2200) break;
+            }
+            out.append(']');
+            if (out.length() > 2200) {
+                out.append(" [truncated]");
+                break;
+            }
+        }
+        return out.toString();
     }
 
     private void observeNativeRouteEvents(final ModContext mod, LoadedApp app) {
@@ -144,7 +231,10 @@ public final class WiredTbt extends ModEntry {
             observeStatus(mod, app, "updateOperationStatus", int.class);
             observeStatus(mod, app, "responseNaviAliveStatus", boolean.class);
         }
-        if ("com.mnsoft.navi".equals(app.packageName)) observeNativeDisplay(mod, app);
+        if ("com.mnsoft.navi".equals(app.packageName)) {
+            observeNativeDisplay(mod, app);
+            observeStockGuidance(mod, app);
+        }
         if ("com.tcc.iap2server".equals(app.packageName)) {
             observeNativeRouteEvents(mod, app);
             mod.nativePatch(app, "libiap2session.so");

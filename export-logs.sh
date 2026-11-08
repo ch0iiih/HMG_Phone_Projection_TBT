@@ -1,5 +1,13 @@
 #!/system/bin/sh
 umask 077
+history_dir=/data/hmgapi/logs/wired-tbt-capture
+capture_pid=
+if mkdir -p "$history_dir"; then
+    logcat -v threadtime -f "$history_dir/capture.log" -r 2048 -n 5 -s HMG-API:I '*:S' &
+    capture_pid=$!
+fi
+trap '[ -z "$capture_pid" ] || kill "$capture_pid" 2>/dev/null' EXIT
+trap 'exit 0' HUP INT TERM
 last_folders=
 while true; do
     folders=
@@ -13,6 +21,7 @@ while true; do
 
         tmp="$folder/.wired-carplay-tbt.log.part"
         log="$folder/wired-carplay-tbt.log"
+        capture_tmp="$folder/.stock-guidance.log.part"
         if {
             echo "build=$(getprop ro.build.product)"
             echo "captured=$(date)"
@@ -27,15 +36,25 @@ while true; do
             for history in /data/hmgapi/logs/hmgapi/log.log.1 /data/hmgapi/logs/hmgapi/log.log; do
                 [ -r "$history" ] || continue
                 grep -F '[wired-carplay-tbt-lx2pe]' "$history" |
-                    grep -E ' turn index=|cluster path no icon|guidance source=|cluster path clear sent' |
-                    tail -n 2000
+                    grep -E ' turn index=|cluster path no icon|guidance source=|cluster path clear sent|Native display updateTBTInfo first=|Native display updateTPCrossroadName.*Text=true|Stock guidance |lane detail |lane frame |Native display updateLaneInfo.*frame=' |
+                    tail -n 6000
             done
             echo 'finished=1'
-        } > "$tmp" && mv "$tmp" "$log"; then
+        } > "$tmp" && mv "$tmp" "$log" && {
+            echo "captured=$(date)"
+            for history in "$history_dir"/capture.log.5 "$history_dir"/capture.log.4 \
+                    "$history_dir"/capture.log.3 "$history_dir"/capture.log.2 \
+                    "$history_dir"/capture.log.1 "$history_dir"/capture.log; do
+                [ -r "$history" ] || continue
+                grep -F '[wired-carplay-tbt-lx2pe]' "$history" || :
+            done
+            echo 'finished=1'
+        } > "$capture_tmp" && mv "$capture_tmp" "$folder/stock-guidance.log"; then
             sync
             echo "Exported TBT logs to $log"
         else
             rm "$tmp" 2>/dev/null
+            rm "$capture_tmp" 2>/dev/null
             echo "Could not export TBT logs to $folder"
         fi
     done

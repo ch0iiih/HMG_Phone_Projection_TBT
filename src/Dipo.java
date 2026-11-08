@@ -131,7 +131,7 @@ public final class Dipo {
                 });
             }
         });
-        log("Wired CarPlay TBT 0.1.36: route guidance listener enabled");
+        log("Wired CarPlay TBT 0.1.41: route guidance listener enabled");
     }
 
     static void post(Runnable r) {
@@ -242,9 +242,9 @@ public final class Dipo {
                         }
                         String record = raw.toString();
                         if (what == RG_MANEUVER) {
-                            log("TBT 0.1.36 received maneuver" + record);
+                            log("TBT 0.1.41 received maneuver" + record);
                         } else if (!record.equals(lastRouteFields)) {
-                            log("TBT 0.1.36 received route" + record);
+                            log("TBT 0.1.41 received route" + record);
                             lastRouteFields = record;
                         }
                     }

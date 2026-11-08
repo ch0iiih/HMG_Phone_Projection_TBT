@@ -190,6 +190,7 @@ final class CpTurns {
     }
 
     private LaneFrame pendingLanes, activeLanes;
+    private long lastLaneSentAt;
     private final Runnable expireLanes = new Runnable() {
         @Override
         public void run() {
@@ -214,6 +215,7 @@ final class CpTurns {
         setLaneLease(0);
         Dipo.log("Wired CarPlay: lane display released index=" + activeLanes.index);
         activeLanes = null;
+        lastLaneSentAt = 0;
     }
 
     private void updateLaneDisplay(int component, Update route) {
@@ -222,17 +224,22 @@ final class CpTurns {
         if (activeLanes != null && activeLanes.component == component
                 && (!visible || activeLanes.index != route.laneIndex)) clearLaneDisplay();
         LaneFrame pending = pendingLanes;
-        if (pending == null) return;
-        if (SystemClock.elapsedRealtime() - pending.receivedAt > 2000) {
+        long now = SystemClock.elapsedRealtime();
+        if (pending != null && now - pending.receivedAt > 2000) {
             pendingLanes = null;
-        } else if (pending.component == component && pending.index == route.laneIndex && visible) {
+        } else if (pending != null && pending.component == component && pending.index == route.laneIndex && visible) {
             activeLanes = pending;
             pendingLanes = null;
+            lastLaneSentAt = 0;
+            Dipo.log("Wired CarPlay: lane display active index=" + pending.index);
+        }
+        if (activeLanes != null && activeLanes.component == component
+                && activeLanes.index == route.laneIndex && visible && now - lastLaneSentAt >= 1000) {
             setLaneLease(System.currentTimeMillis() + WiredTbt.LANE_LEASE_MS);
-            cluster.laneInfo(pending.bytes);
+            cluster.laneInfo(activeLanes.bytes);
             Dipo.turnsHandler.removeCallbacks(expireLanes);
             Dipo.turnsHandler.postDelayed(expireLanes, WiredTbt.LANE_LEASE_MS);
-            Dipo.log("Wired CarPlay: lane display active index=" + pending.index);
+            lastLaneSentAt = now;
         }
     }
 
@@ -244,6 +251,7 @@ final class CpTurns {
         if (components == null || components.length == 0) return;
         int laneIndex = -1;
         int[] status = new int[8], a = new int[8], b = new int[8], c = new int[8];
+        int possibleMask = 0, preferredMask = 0;
         int n = 0;
         for (int k = 0; k < g.getItemCnt(); k++) {
             Iap2NotiMsg.Iap2ObjItem it = g.getObjItem(k);
@@ -261,6 +269,8 @@ final class CpTurns {
                 a[n] = one[1];
                 b[n] = one[2];
                 c[n] = one[3];
+                if (one[4] != 0) possibleMask |= 1 << n;
+                if (one[5] != 0) preferredMask |= 1 << n;
                 n++;
                 if (n == 8) break;
             }
@@ -274,13 +284,15 @@ final class CpTurns {
             f[k * 3 + 20] = (byte) b[k];
             f[k * 3 + 21] = (byte) c[k];
         }
-        int highlighted = 0;
-        for (int k = 0; k < n; k++) if (status[k] == 2) highlighted++;
+        f[75] = (byte) possibleMask;
+        f[77] = (byte) preferredMask;
+        int passable = Integer.bitCount(possibleMask);
         Dipo.log("Wired CarPlay: lane frame index=" + laneIndex
-                + " lanes=" + n + " highlighted=" + highlighted);
+                + " lanes=" + n + " passable=" + passable
+                + " statuses=" + java.util.Arrays.toString(java.util.Arrays.copyOf(status, n)));
         if (laneIndex < 0) return;
         int component = components[0];
-        if (highlighted == 0) {
+        if (passable == 0) {
             if (activeLanes != null && activeLanes.component == component
                     && activeLanes.index == laneIndex) clearLaneDisplay();
             if (pendingLanes != null && pendingLanes.component == component
@@ -291,11 +303,11 @@ final class CpTurns {
         updateLaneDisplay(component, updates.get(component));
     }
 
-    /** one lane: {status (1, or 2 highlighted), up to 3 arrow icons} */
+    /** Packed two-bit styles per arrow (1 gray, 2 preferred, 3 white), three icons, usable/preferred flags. */
     static int[] laneOne(Iap2NotiMsg.Iap2ObjGroup g) {
-        int[] r = new int[4];
-        r[0] = 1;
+        int[] r = new int[6];
         if (g == null) return r;
+        int receivedStatus = -1;
         int[] angles = null, highlight = null;
         for (int k = 0; k < g.getItemCnt(); k++) {
             Iap2NotiMsg.Iap2ObjItem it = g.getObjItem(k);
@@ -306,21 +318,39 @@ final class CpTurns {
             if (v == null || v.length == 0) continue;
             int id = it.getItemId();
             if (id == 1) {
-                if (v[0] == 2) r[0] = 2;
+                receivedStatus = v[0];
             } else if (id == 2) {
                 angles = v;
             } else if (id == 3) {
                 highlight = v;
             }
         }
-        if (highlight != null && highlight.length > 0) r[0] = 2;
         if (angles != null) {
             int n = 0;
             for (int k = 0; k < angles.length && n < 3; k++) {
                 int icon = laneIcon(angles[k]);
-                if (icon != 0) r[1 + n++] = icon;
+                if (icon == 0) continue;
+                boolean usable = receivedStatus != 0 && (receivedStatus == 1 || receivedStatus == 2
+                        || receivedStatus < 0);
+                boolean selected = highlight == null && angles.length == 1
+                        && (receivedStatus == 1 || receivedStatus == 2);
+                if (highlight != null) {
+                    for (int angle : highlight) if (angle == angles[k]) selected = true;
+                }
+                int style = 1;
+                if (usable && selected) {
+                    style = receivedStatus == 2 ? 2 : 3;
+                    r[4] = 1;
+                    if (receivedStatus == 2) r[5] = 1;
+                }
+                r[0] |= style << (2 * n);
+                r[1 + n++] = icon;
             }
         }
+        Dipo.log("Wired CarPlay: lane detail inputStatus=" + receivedStatus
+                + " angles=" + java.util.Arrays.toString(angles)
+                + " highlightedAngles=" + java.util.Arrays.toString(highlight)
+                + " outputStyles=" + r[0]);
         return r;
     }
 
@@ -528,10 +558,10 @@ final class CpTurns {
                 + x.facilityTrace() + " next=" + (next == null ? "missing"
                         : next.type + "/" + next.exit + "/" + next.distance + next.facilityTrace());
         if (!trace.equals(lastTurnTrace)) {
-            Dipo.log("Wired CarPlay 0.1.36 turn " + trace);
+            Dipo.log("Wired CarPlay 0.1.41 turn " + trace);
             lastTurnTrace = trace;
         }
-        cluster.crossroadName(x.afterRoad);
+        cluster.crossroadName(x.displayRoad());
         if (icon == 0) {
             outputState("no icon for maneuver type " + x.type + " junction=" + x.junction
                     + " side=" + x.side + " exit=" + x.exit);
@@ -566,10 +596,9 @@ final class CpTurns {
     }
 
     private static int facilityIcon(Maneuver x) {
-        if (x.junction != 0) return 0;
-        if ((x.type == 3 || x.type == 13 || x.type == 14) && x.tollText() && !x.restText()) return 178;
-        if (x.type == 3 && x.restText() && !x.tollText()) return 164;
-        return 0;
+        if (x.junction != 0 || (x.type != 3 && x.type != 13 && x.type != 14)) return 0;
+        if (x.tollText()) return x.restText() ? 0 : 178;
+        return x.roadFacilityIcon();
     }
 
     /**
@@ -617,13 +646,13 @@ final class CpTurns {
                 return side == 0 && junction == 0 && exit == 0 ? 172 : 0;
             case 9: // highway on-ramp
                 if (junction != 0) return 0;
-                if (exit < 0) return 174;
+                if (exit < 0) return 71;
                 if (exit > 0) return 173;
                 return 172;
             case 8: // highway off-ramp without a side-specific maneuver type
                 if (junction != 0) return 0;
-                if (exit < 0) return 82;
-                if (exit > 0) return 81;
+                if (exit < 0) return 71;
+                if (exit > 0) return 164;
                 return 86;
             case 10: // end of navigation
             case 27: // end of directions
@@ -634,8 +663,8 @@ final class CpTurns {
             }
             case 15: return side == 0 && junction == 0 && exit == 0 ? 176 : 0;
             case 19: return side == 0 && junction == 1 && exit == -180 ? 102 : 0;
-            case 22: return junction == 0 ? 82 : 0;
-            case 23: return junction == 0 ? 81 : 0;
+            case 22: return junction == 0 ? 71 : 0;
+            case 23: return junction == 0 ? 164 : 0;
             case 24: return side == 0 && junction == 0 && exit == 0 ? 114 : 0;
             case 25: return side == 0 && junction == 0 && exit == 0 ? 113 : 0;
             case 28: return side == 0 && junction == 1 && exit == 135 ? 100 : 0;
@@ -658,7 +687,7 @@ final class CpTurns {
                 return junction == 0 ? 68 : 0;
             case 49: return junction == 0 ? 71 : 0;
             case 50: return junction == 0 ? 66 : 0;
-            case 52: return side == 0 && junction == 0 && exit == 0 ? 174 : 0;
+            case 52: return side == 0 && junction == 0 && exit == 0 ? 71 : 0;
             case 53: return side == 0 && junction == 0 && exit == 0 ? 173 : 0;
             default: return 0;
         }
@@ -704,7 +733,7 @@ final class CpTurns {
         LinkedHashMap<Integer, Maneuver> m = maneuvers.get(id);
         if (m != null && list != null && list.length > 0) {
             Maneuver x = m.get(list[0]);
-            if (x != null && x.afterRoad != null) road = x.afterRoad;
+            if (x != null) road = x.displayRoad();
             if (list.length > 1) {
                 Maneuver y = m.get(list[1]);
                 if (y != null) {
@@ -810,7 +839,7 @@ final class CpTurns {
             if (!showingGuidance || tripOutput == null) return;
             tripOutput.run();
             if (!tripRefreshLogged) {
-                Dipo.log("Wired CarPlay 0.1.36 trip refresh running");
+                Dipo.log("Wired CarPlay 0.1.41 trip refresh running");
                 tripRefreshLogged = true;
             }
             Dipo.turnsHandler.postDelayed(this, 750);
@@ -895,7 +924,7 @@ final class CpTurns {
                         arrivalType, arrivalFormat, 0f, -1, 0);
             }
         };
-        Dipo.log("Wired CarPlay 0.1.36 trip distance=" + distance + " distanceErr=0 unit=" + distanceUnit);
+        Dipo.log("Wired CarPlay 0.1.41 trip distance=" + distance + " distanceErr=0 unit=" + distanceUnit);
         tripOutput.run();
         Dipo.turnsHandler.removeCallbacks(refreshTrip);
         Dipo.turnsHandler.postDelayed(refreshTrip, 750);
@@ -925,7 +954,7 @@ final class CpTurns {
             t.direction = 0;
             t.traffic = 0;
             t.no = n + 1;
-            t.name = x.afterRoad == null ? "" : x.afterRoad;
+            t.name = x.displayRoad();
             t.exitNumber = "";
             int d = x.distance;
             float f = d;
@@ -1087,6 +1116,8 @@ final class CpTurns {
 
     /** one maneuver (DiPO e/v) */
     static final class Maneuver {
+        private static final java.util.regex.Pattern ROAD_ENTRY = java.util.regex.Pattern.compile(
+                "(지하|고가)\\s*차도\\s*(?:(?:으로|로)\\s*)?진입(?:하세요|하십시오)?(?![가-힣])");
         int index, type, distance, distUnits, side, junction, exit, linkedLane;
         String description, afterRoad, distStr;
         int[] angles;
@@ -1094,7 +1125,44 @@ final class CpTurns {
 
         /** Log facility hints without exporting route text. */
         String facilityTrace() {
-            return " tollText=" + tollText() + " restText=" + restText();
+            return " tollText=" + tollText() + " restText=" + restText()
+                    + " underpassText=" + hasRoadText("지하차도")
+                    + " overpassText=" + hasRoadText("고가차도")
+                    + " roadsideText=" + (hasRoadText("옆길") || hasRoadText("옆 길") || hasRoadText("측도"))
+                    + " description=" + description + " afterRoad=" + afterRoad
+                    + " angles=" + java.util.Arrays.toString(angles);
+        }
+
+        String displayRoad() {
+            String road = afterRoad == null ? "" : afterRoad;
+            if (!road.trim().isEmpty()) return road;
+            if (hasRoadText("지하차도") && !hasRoadText("고가차도")) return "지하차도";
+            if (hasRoadText("고가차도") && !hasRoadText("지하차도")) return "고가차도";
+            if (restText() && !tollText()) return hasRoadText("졸음쉼터") ? "졸음쉼터" : "휴게소";
+            if (junction == 0 && (type == 8 || type == 22 || type == 23)) return "고속도로 진출";
+            return road;
+        }
+
+        private boolean hasRoadText(String token) {
+            return (description != null && description.contains(token))
+                    || (afterRoad != null && afterRoad.contains(token));
+        }
+
+        int roadFacilityIcon() {
+            if ((hasRoadText("지하차도") || hasRoadText("고가차도"))
+                    && (hasRoadText("옆길") || hasRoadText("옆 길") || hasRoadText("측도"))
+                    && !hasRoadText("금지") && !restText()) {
+                // Trial right-side road glyph observed in the stock comparison drive.
+                return type == 14 ? 84 : 0;
+            }
+            if (description == null || restText() || description.contains("옆길")
+                    || description.contains("측도") || description.contains("금지")) return 0;
+            java.util.regex.Matcher entry = ROAD_ENTRY.matcher(description);
+            if (!entry.find()) return 0;
+            String kind = entry.group(1);
+            if (entry.find()) return 0;
+            // The stock navigation sent 44 on the final approach to a reported overpass.
+            return kind.equals("고가") ? 44 : 0;
         }
 
         private boolean tollText() {
