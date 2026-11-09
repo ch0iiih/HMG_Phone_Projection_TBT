@@ -1,4 +1,4 @@
-package hmgapi.mods.wired;
+package hmgapi.mods.projection;
 
 import hmgapi.hook.ModContext;
 
@@ -19,12 +19,16 @@ final class LaneDispatchPatch {
     private boolean finished;
     private boolean waitingLogged;
 
+    static boolean matchesStockLibrary() {
+        return STOCK_MD5.equals(ModContext.md5(LIBRARY));
+    }
+
     synchronized void apply(ModContext mod) {
         if (finished) return;
         try {
             long address = mappedAddress();
             if (address < 0) return; // The library may still be loading.
-            if (!STOCK_MD5.equals(ModContext.md5(LIBRARY))) {
+            if (!matchesStockLibrary()) {
                 finished = true;
                 mod.log("TBT lane dispatch skipped: unexpected library hash");
                 return;

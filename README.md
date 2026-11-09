@@ -20,14 +20,16 @@ This mod does not enable wireless phone projection itself. Wireless CarPlay must
 | --- | --- | --- |
 | Korea (KOR) | 2023 Hyundai Palisade LX2 PE, factory Gen5W | `LX2PE.KOR.0000.V039.001.260902` |
 
-Other regions, vehicles, clusters and firmware versions are unverified. General turns and roundabouts have been observed in earlier builds. Version **0.1.45 is a prerelease**: recent lane changes and the alternative service-area icon still need vehicle verification. Grade-separated-road and unprotected-turn attributes cannot be reconstructed when the phone only sends a generic maneuver.
+Other regions, vehicles, clusters and firmware versions are unverified. General turns and roundabouts have been observed in earlier builds. Recent lane changes and the alternative service-area icon still need vehicle verification. Grade-separated-road and unprotected-turn attributes cannot be reconstructed when the phone only sends a generic maneuver.
 
 ## Installation
 
 Requires [HMG-API](https://github.com/VysseCodes/HMG-API) **1.0.2 or later** and **Hooks on (map checked)** for your vehicle.
 
-- **First installation:** use the NEMESIS installer ZIP from [v0.1.45](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/releases/tag/v0.1.45), with HMG-API already installed.
-- **Update an existing TBT installation:** copy `phone-projection-tbt-0.1.45.zip` to the USB drive's `HMGAPI/updates/` folder without extracting it. Remove previous TBT update ZIPs. In HMG-API select **Check USB updates → Apply changes → Restart Unit** while parked.
+Starting with **0.1.46**, both installers accept any model, region, and firmware. Runtime behavior depends on the HMG-API map, DiPO interfaces, and cluster. The native lane fixes require the verified `libiap2session.so` build.
+
+- **First installation:** with HMG-API already installed, install `phone-projection-tbt-0.1.46-nemesis-package.zip` through NEMESIS.
+- **Update an existing TBT installation:** copy `phone-projection-tbt-0.1.46.zip` to the USB drive's `HMGAPI/updates/` folder without extracting it. Remove previous TBT update ZIPs. In HMG-API select **Check USB updates → Apply changes → Restart Unit** while parked.
 
 Connect the iPhone using wired or already-working wireless CarPlay and start navigation. For NAVER Map, enable its CarPlay HUD integration and select the navigation page on the cluster.
 

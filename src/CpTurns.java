@@ -1,4 +1,4 @@
-package hmgapi.mods.wireless.dipo;
+package hmgapi.mods.projection.carplay;
 
 import android.content.Context;
 import android.os.SystemClock;
@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import hmgapi.hook.Car;
 import hmgapi.hook.Cluster;
 import hmgapi.hook.Points;
-import hmgapi.mods.wired.WiredTbt;
+import hmgapi.mods.projection.ProjectionTbt;
 
 /**
  * CarPlay turn-by-turn on the cluster and HUD: a port of the turn-by-turn build's DiPO
@@ -200,7 +200,7 @@ final class CpTurns {
 
     private void setLaneLease(long until) {
         try {
-            Settings.Global.putLong(context.getContentResolver(), WiredTbt.LANE_LEASE, until);
+            Settings.Global.putLong(context.getContentResolver(), ProjectionTbt.LANE_LEASE, until);
         } catch (RuntimeException e) {
             Dipo.error("CarPlay lane lease", e);
         }
@@ -213,7 +213,7 @@ final class CpTurns {
         empty[0] = (byte) 0xF1;
         cluster.laneInfo(empty);
         setLaneLease(0);
-        Dipo.log("Wired CarPlay: lane display released index=" + activeLanes.index);
+        Dipo.log("CarPlay: lane display released index=" + activeLanes.index);
         activeLanes = null;
         lastLaneSentAt = 0;
     }
@@ -231,14 +231,24 @@ final class CpTurns {
             activeLanes = pending;
             pendingLanes = null;
             lastLaneSentAt = 0;
-            Dipo.log("Wired CarPlay: lane display active index=" + pending.index);
+            Dipo.log("CarPlay: lane display active index=" + pending.index);
         }
         if (activeLanes != null && activeLanes.component == component
                 && activeLanes.index == route.laneIndex && visible && now - lastLaneSentAt >= 1000) {
-            setLaneLease(System.currentTimeMillis() + WiredTbt.LANE_LEASE_MS);
-            cluster.laneInfo(activeLanes.bytes);
+            setLaneLease(System.currentTimeMillis() + ProjectionTbt.LANE_LEASE_MS);
+            byte[] displayed = activeLanes.bytes;
+            try {
+                displayed = StockLaneHints.merge(displayed,
+                        Settings.Global.getString(context.getContentResolver(), StockLaneHints.KEY), now);
+            } catch (RuntimeException ignored) {
+                // Fall back to the phone's unchanged frame if factory hints are unavailable.
+            }
+            if (displayed[2] != activeLanes.bytes[2])
+                Dipo.log("CarPlay: pocket markers merged index=" + activeLanes.index
+                        + " markers=" + (displayed[2] & 255));
+            cluster.laneInfo(displayed);
             Dipo.turnsHandler.removeCallbacks(expireLanes);
-            Dipo.turnsHandler.postDelayed(expireLanes, WiredTbt.LANE_LEASE_MS);
+            Dipo.turnsHandler.postDelayed(expireLanes, ProjectionTbt.LANE_LEASE_MS);
             lastLaneSentAt = now;
         }
     }
@@ -249,6 +259,7 @@ final class CpTurns {
         if (g == null) return;
         int[] components = componentIds(msg);
         if (components == null || components.length == 0) return;
+        Dipo.log("CarPlay: lane input root " + inputFields(g));
         int laneIndex = -1;
         int[] status = new int[8], a = new int[8], b = new int[8], c = new int[8];
         int possibleMask = 0, preferredMask = 0;
@@ -284,10 +295,10 @@ final class CpTurns {
             f[k * 3 + 20] = (byte) b[k];
             f[k * 3 + 21] = (byte) c[k];
         }
-        f[75] = (byte) possibleMask;
-        f[77] = (byte) preferredMask;
+        // 0x4B/0x4D are stock hipass/nonHipass masks, NOT usable/preferred lanes.
+        // Per-direction possibility is already packed into f[3..10].
         int passable = Integer.bitCount(possibleMask);
-        Dipo.log("Wired CarPlay: lane frame index=" + laneIndex
+        Dipo.log("CarPlay: lane frame index=" + laneIndex
                 + " lanes=" + n + " passable=" + passable
                 + " statuses=" + java.util.Arrays.toString(java.util.Arrays.copyOf(status, n)));
         if (laneIndex < 0) return;
@@ -303,10 +314,9 @@ final class CpTurns {
         updateLaneDisplay(component, updates.get(component));
     }
 
-    /** Packed two-bit styles per arrow (1 gray, 2 preferred, 3 white), three icons, usable/preferred flags. */
+    /** Lane glyph type, three glyph parts, and usable/preferred flags. */
     static int[] laneOne(Iap2NotiMsg.Iap2ObjGroup g) {
-        int[] r = new int[6];
-        if (g == null) return r;
+        if (g == null) return new int[6];
         int receivedStatus = -1;
         int[] angles = null, highlight = null;
         for (int k = 0; k < g.getItemCnt(); k++) {
@@ -325,50 +335,42 @@ final class CpTurns {
                 highlight = v;
             }
         }
-        if (angles != null) {
-            int n = 0;
-            for (int k = 0; k < angles.length && n < 3; k++) {
-                int icon = laneIcon(angles[k]);
-                if (icon == 0) continue;
-                boolean usable = receivedStatus != 0 && (receivedStatus == 1 || receivedStatus == 2
-                        || receivedStatus < 0);
-                boolean selected = highlight == null && angles.length == 1
-                        && (receivedStatus == 1 || receivedStatus == 2);
-                if (highlight != null) {
-                    for (int angle : highlight) if (angle == angles[k]) selected = true;
-                }
-                int style = 1;
-                if (usable && selected) {
-                    style = receivedStatus == 2 ? 2 : 3;
-                    r[4] = 1;
-                    if (receivedStatus == 2) r[5] = 1;
-                }
-                r[0] |= style << (2 * n);
-                r[1 + n++] = icon;
-            }
-        }
-        Dipo.log("Wired CarPlay: lane detail inputStatus=" + receivedStatus
+        int[] encoded = LaneGlyphs.encode(receivedStatus, angles, highlight);
+        Dipo.log("CarPlay: lane detail inputStatus=" + receivedStatus
                 + " angles=" + java.util.Arrays.toString(angles)
                 + " highlightedAngles=" + java.util.Arrays.toString(highlight)
-                + " outputStyles=" + r[0]);
-        return r;
+                + " inputFields=" + inputFields(g)
+                + " partColors=" + encoded[0]
+                + " glyphParts=" + java.util.Arrays.toString(java.util.Arrays.copyOfRange(encoded, 1, 4)));
+        return encoded;
     }
 
-    /** a lane angle (degrees, right positive) as the cluster's arrow: 1 straight, 2-4 right, 5 back, 6-8 left */
-    static int laneIcon(int a) {
-        if (a > 180) a -= 360;
-        else if (a < -180) a += 360;
-        if (a >= 0) {
-            if (a <= 22) return 1;
-            if (a <= 67) return 2;
-            if (a <= 112) return 3;
-            return a <= 157 ? 4 : 5;
+    /** Preserve lane ID / optional fields too, without guessing pocket-lane semantics. */
+    static String inputFields(Iap2NotiMsg.Iap2ObjGroup group) {
+        StringBuilder out = new StringBuilder();
+        for (int k = 0; group != null && k < group.getItemCnt() && k < 24; k++) {
+            Iap2NotiMsg.Iap2ObjItem item = group.getObjItem(k);
+            if (item == null) continue;
+            int type = item.getItemParamType();
+            out.append(" id=").append(item.getItemId()).append("/type=").append(type)
+                    .append("/count=").append(item.getItemObjCount());
+            if (type == 1 || type == 2 || type == 5 || type == 6 || type == 8 || type == 9) {
+                int[] values = item.getItemIntArray();
+                if (values != null) out.append("/values=").append(java.util.Arrays.toString(
+                        java.util.Arrays.copyOf(values, Math.min(values.length, 16))));
+            } else if (type == 10) {
+                String[] values = item.getItemStringArray();
+                if (values != null && values.length > 0 && values[0] != null) {
+                    String value = values[0];
+                    out.append("/text=").append(value.substring(0, Math.min(value.length(), 240)));
+                }
+            }
         }
-        a = -a;
-        if (a <= 22) return 1;
-        if (a <= 67) return 8;
-        if (a <= 112) return 7;
-        return a <= 157 ? 6 : 5;
+        return out.toString();
+    }
+
+    static int laneIcon(int angle) {
+        return LaneGlyphs.angleIcon(angle);
     }
 
     private Object legacyCluster;
@@ -384,9 +386,9 @@ final class CpTurns {
             legacyActive = true;
             legacyAlive.invoke(legacyCluster, true);
             legacyOperation.invoke(legacyCluster, 1);
-            Dipo.log("Wired CarPlay: legacy cluster status started");
+            Dipo.log("CarPlay: legacy cluster status started");
         } catch (Exception e) {
-            Dipo.error("Wired CarPlay: legacy cluster start", e);
+            Dipo.error("CarPlay: legacy cluster start", e);
             stopLegacyStatus();
             legacyUnavailable = true;
         }
@@ -399,17 +401,17 @@ final class CpTurns {
             legacyAlive.invoke(legacyCluster, false);
         } catch (Exception e) {
             restored = false;
-            Dipo.error("Wired CarPlay: legacy cluster alive stop", e);
+            Dipo.error("CarPlay: legacy cluster alive stop", e);
         }
         try {
             legacyOperation.invoke(legacyCluster, 0);
         } catch (Exception e) {
             restored = false;
-            Dipo.error("Wired CarPlay: legacy cluster operation stop", e);
+            Dipo.error("CarPlay: legacy cluster operation stop", e);
         }
         if (restored) {
             legacyActive = false;
-            Dipo.log("Wired CarPlay: legacy cluster status stopped");
+            Dipo.log("CarPlay: legacy cluster status stopped");
         }
     }
 
@@ -481,7 +483,7 @@ final class CpTurns {
             String was = source;
             source = s;
             if (was == null) {
-                Dipo.log("Wired CarPlay: guidance source=" + s);
+                Dipo.log("CarPlay: guidance source=" + s);
                 return;
             }
             if (was.equals(s)) return;
@@ -496,7 +498,7 @@ final class CpTurns {
     private void outputState(String state) {
         if (state.equals(lastOutputState)) return;
         lastOutputState = state;
-        Dipo.log("Wired CarPlay: cluster path " + state);
+        Dipo.log("CarPlay: cluster path " + state);
     }
 
     /** one component's update to the cluster (DiPO e/u.a(Integer, Object), with the build's changes) */
@@ -558,7 +560,7 @@ final class CpTurns {
                 + x.facilityTrace() + " next=" + (next == null ? "missing"
                         : next.type + "/" + next.exit + "/" + next.distance + next.facilityTrace());
         if (!trace.equals(lastTurnTrace)) {
-            Dipo.log("Wired CarPlay 0.1.41 turn " + trace);
+            Dipo.log("CarPlay 0.1.46 turn " + trace);
             lastTurnTrace = trace;
         }
         cluster.crossroadName(x.displayRoad());
@@ -596,8 +598,9 @@ final class CpTurns {
     }
 
     private static int facilityIcon(Maneuver x) {
-        if (x.junction != 0 || (x.type != 3 && x.type != 13 && x.type != 14)) return 0;
-        if (x.tollText()) return x.restText() ? 0 : 178;
+        if (x.junction != 0) return 0;
+        if ((x.type == 3 || x.type == 13 || x.type == 14) && x.tollText())
+            return x.restText() ? 0 : 178;
         return x.roadFacilityIcon();
     }
 
@@ -607,6 +610,8 @@ final class CpTurns {
      * the turn-by-turn build maps them (0: nothing to show).
      */
     static int icon(int type, int side, int junction, int exit, int state) {
+        int highway = FacilityGlyphs.highway(type, junction, exit);
+        if (highway != 0) return highway;
         switch (type) {
             case 20:  // left at end of road
             case 1:   // left turn
@@ -644,16 +649,6 @@ final class CpTurns {
                 return 0;
             case 5:
                 return side == 0 && junction == 0 && exit == 0 ? 172 : 0;
-            case 9: // highway on-ramp
-                if (junction != 0) return 0;
-                if (exit < 0) return 71;
-                if (exit > 0) return 173;
-                return 172;
-            case 8: // highway off-ramp without a side-specific maneuver type
-                if (junction != 0) return 0;
-                if (exit < 0) return 71;
-                if (exit > 0) return 164;
-                return 86;
             case 10: // end of navigation
             case 27: // end of directions
                 return state == 2 ? 3 : 0;
@@ -663,8 +658,6 @@ final class CpTurns {
             }
             case 15: return side == 0 && junction == 0 && exit == 0 ? 176 : 0;
             case 19: return side == 0 && junction == 1 && exit == -180 ? 102 : 0;
-            case 22: return junction == 0 ? 71 : 0;
-            case 23: return junction == 0 ? 164 : 0;
             case 24: return side == 0 && junction == 0 && exit == 0 ? 114 : 0;
             case 25: return side == 0 && junction == 0 && exit == 0 ? 113 : 0;
             case 28: return side == 0 && junction == 1 && exit == 135 ? 100 : 0;
@@ -687,8 +680,6 @@ final class CpTurns {
                 return junction == 0 ? 68 : 0;
             case 49: return junction == 0 ? 71 : 0;
             case 50: return junction == 0 ? 66 : 0;
-            case 52: return side == 0 && junction == 0 && exit == 0 ? 71 : 0;
-            case 53: return side == 0 && junction == 0 && exit == 0 ? 173 : 0;
             default: return 0;
         }
     }
@@ -820,10 +811,10 @@ final class CpTurns {
         try {
             if (!Settings.Global.putLong(context.getContentResolver(),
                     "hmgapi_lx2pe_carplay_distance_until", expiresAt)) {
-                Dipo.log("Wired CarPlay: distance lease write failed");
+                Dipo.log("CarPlay: distance lease write failed");
             }
         } catch (RuntimeException e) {
-            Dipo.error("Wired CarPlay: distance lease write", e);
+            Dipo.error("CarPlay: distance lease write", e);
         }
     }
 
@@ -839,7 +830,7 @@ final class CpTurns {
             if (!showingGuidance || tripOutput == null) return;
             tripOutput.run();
             if (!tripRefreshLogged) {
-                Dipo.log("Wired CarPlay 0.1.41 trip refresh running");
+                Dipo.log("CarPlay 0.1.46 trip refresh running");
                 tripRefreshLogged = true;
             }
             Dipo.turnsHandler.postDelayed(this, 750);
@@ -924,7 +915,7 @@ final class CpTurns {
                         arrivalType, arrivalFormat, 0f, -1, 0);
             }
         };
-        Dipo.log("Wired CarPlay 0.1.41 trip distance=" + distance + " distanceErr=0 unit=" + distanceUnit);
+        Dipo.log("CarPlay 0.1.46 trip distance=" + distance + " distanceErr=0 unit=" + distanceUnit);
         tripOutput.run();
         Dipo.turnsHandler.removeCallbacks(refreshTrip);
         Dipo.turnsHandler.postDelayed(refreshTrip, 750);
@@ -1116,8 +1107,6 @@ final class CpTurns {
 
     /** one maneuver (DiPO e/v) */
     static final class Maneuver {
-        private static final java.util.regex.Pattern ROAD_ENTRY = java.util.regex.Pattern.compile(
-                "(지하|고가)\\s*차도\\s*(?:(?:으로|로)\\s*)?진입(?:하세요|하십시오)?(?![가-힣])");
         int index, type, distance, distUnits, side, junction, exit, linkedLane;
         String description, afterRoad, distStr;
         int[] angles;
@@ -1140,6 +1129,7 @@ final class CpTurns {
             if (hasRoadText("고가차도") && !hasRoadText("지하차도")) return "고가차도";
             if (restText() && !tollText()) return hasRoadText("졸음쉼터") ? "졸음쉼터" : "휴게소";
             if (junction == 0 && (type == 8 || type == 22 || type == 23)) return "고속도로 진출";
+            if (junction == 0 && (type == 9 || type == 52 || type == 53)) return "고속도로 진입";
             return road;
         }
 
@@ -1149,20 +1139,7 @@ final class CpTurns {
         }
 
         int roadFacilityIcon() {
-            if ((hasRoadText("지하차도") || hasRoadText("고가차도"))
-                    && (hasRoadText("옆길") || hasRoadText("옆 길") || hasRoadText("측도"))
-                    && !hasRoadText("금지") && !restText()) {
-                // Trial right-side road glyph observed in the stock comparison drive.
-                return type == 14 ? 84 : 0;
-            }
-            if (description == null || restText() || description.contains("옆길")
-                    || description.contains("측도") || description.contains("금지")) return 0;
-            java.util.regex.Matcher entry = ROAD_ENTRY.matcher(description);
-            if (!entry.find()) return 0;
-            String kind = entry.group(1);
-            if (entry.find()) return 0;
-            // The stock navigation sent 44 on the final approach to a reported overpass.
-            return kind.equals("고가") ? 44 : 0;
+            return FacilityGlyphs.road(type, junction, exit, description, afterRoad);
         }
 
         private boolean tollText() {

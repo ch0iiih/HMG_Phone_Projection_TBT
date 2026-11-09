@@ -1,18 +1,13 @@
 {
   "id": "wired-carplay-tbt-lx2pe",
   "name": "Phone Projection TBT",
-  "version": "0.1.45",
+  "version": "0.1.46",
   "hmgapi": ">=1.0.2",
   "authors": [
     "Local build"
   ],
   "license": "AGPL-3.0",
   "description": "Shows CarPlay turn-by-turn directions and lane guidance on the instrument cluster over wired or wireless connections. Android Auto TBT support is planned.",
-  "system": {
-    "model": "LX2PE",
-    "region": "KOR",
-    "firmware": "260902"
-  },
   "hooks": {
     "jar": "hooks.jar",
     "entry": "hmgapi.mods.projection.ProjectionTbt",

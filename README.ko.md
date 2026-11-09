@@ -20,14 +20,16 @@
 | --- | --- | --- |
 | 대한민국 (KOR) | 현대 팰리세이드 2023년식 LX2 PE, 순정 Gen5W | `LX2PE.KOR.0000.V039.001.260902` |
 
-다른 국가·차종·계기판·펌웨어의 호환성은 미확인입니다. 일반 회전과 회전교차로는 이전 빌드에서 실차 확인했습니다. **0.1.45는 시험판**이며, 최신 차선 변경과 휴게소 대체 그림은 실차 검증이 남아 있습니다. 폰이 일반 회전 정보만 보낼 때 고가·지하차도나 비보호 속성을 임의로 복원하지 않습니다.
+다른 국가·차종·계기판·펌웨어의 호환성은 미확인입니다. 일반 회전과 회전교차로는 이전 빌드에서 실차 확인했습니다. 최신 차선 변경과 휴게소 대체 그림은 실차 검증이 남아 있습니다. 폰이 일반 회전 정보만 보낼 때 고가·지하차도나 비보호 속성을 임의로 복원하지 않습니다.
 
 ## 설치
 
 차량에 [HMG-API](https://github.com/VysseCodes/HMG-API) **1.0.2 이상**이 설치되어 있고 **Hooks on (map checked)** 상태여야 합니다.
 
-- **최초 설치:** [v0.1.45 릴리스](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/releases/tag/v0.1.45)의 NEMESIS 설치 ZIP을 사용합니다. HMG-API가 먼저 설치되어 있어야 합니다.
-- **기존 TBT 업데이트:** `phone-projection-tbt-0.1.45.zip`을 압축 해제하지 않고 USB의 `HMGAPI/updates/`에 복사합니다. 이전 TBT 업데이트 ZIP은 제거합니다. 정차 상태에서 HMG-API의 **Check USB updates → Apply changes → Restart Unit**을 실행합니다.
+**0.1.46**부터 최초 설치와 업데이트에 적용되던 차종·국가·펌웨어 제한을 해제했습니다. 실제 동작은 HMG-API 맵, DiPO 인터페이스, 계기판에 따라 달라집니다. 네이티브 차선 보정은 검증된 `libiap2session.so`에서만 적용됩니다.
+
+- **최초 설치:** HMG-API를 먼저 설치한 다음 NEMESIS에서 `phone-projection-tbt-0.1.46-nemesis-package.zip`을 설치합니다.
+- **기존 TBT 업데이트:** `phone-projection-tbt-0.1.46.zip`을 압축 해제하지 않고 USB의 `HMGAPI/updates/`에 복사합니다. 이전 TBT 업데이트 ZIP은 제거합니다. 정차 상태에서 HMG-API의 **Check USB updates → Apply changes → Restart Unit**을 실행합니다.
 
 iPhone을 유선 또는 이미 활성화된 무선 CarPlay로 연결하고 길안내를 시작합니다. 네이버 지도에서는 CarPlay HUD 연동을 켜고 계기판의 길안내 화면을 선택합니다.
 

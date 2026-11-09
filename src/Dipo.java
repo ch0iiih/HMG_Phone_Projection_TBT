@@ -1,4 +1,4 @@
-package hmgapi.mods.wireless.dipo;
+package hmgapi.mods.projection.carplay;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -60,14 +60,14 @@ public final class Dipo {
                     public void run() {
                         IIap2Service service = iap2;
                         if (service == null) {
-                            log("Wired CarPlay: session started before iAP2 binding");
+                            log("CarPlay: session started before iAP2 binding");
                             return;
                         }
                         try {
-                            log("Wired CarPlay: session route update request=" +
+                            log("CarPlay: session route update request=" +
                                     service.Iap2SvcStartRouteGuidanceUpdate(RG_COMPONENTS, true, true));
                         } catch (Exception e) {
-                            error("Wired CarPlay: session route update request", e);
+                            error("CarPlay: session route update request", e);
                         }
                     }
                 }, 1000);
@@ -105,7 +105,7 @@ public final class Dipo {
         }
         Cluster c = Cluster.of(app.context);
         if (c == null) {
-            log("Wired CarPlay: cluster service unavailable");
+            log("CarPlay: cluster service unavailable");
             tbt = false;
             return;
         }
@@ -131,7 +131,7 @@ public final class Dipo {
                 });
             }
         });
-        log("Wired CarPlay TBT 0.1.41: route guidance listener enabled");
+        log("Phone Projection TBT 0.1.46: route guidance listener enabled");
     }
 
     static void post(Runnable r) {
@@ -204,7 +204,7 @@ public final class Dipo {
                     int typeBit = 1 << (what - RG_UPDATE);
                     if ((seenTypes & typeBit) == 0) {
                         seenTypes |= typeBit;
-                        log("Wired CarPlay: first route guidance event type=" + what);
+                        log("CarPlay: first route guidance event type=" + what);
                     }
                     if (packetSamples < 16 && (what == RG_UPDATE || what == RG_MANEUVER)) {
                         packetSamples++;
@@ -221,7 +221,10 @@ public final class Dipo {
                                 if (value != null && value.length > 0) fields.append('=').append(value[0]);
                             }
                         }
-                        log("Wired CarPlay: packet " + what + " fields id/type/count:" + fields);
+                        log("CarPlay: packet " + what + " fields id/type/count:" + fields);
+                    }
+                    if (what == RG_MANEUVER) {
+                        log("CarPlay: maneuver input " + CpTurns.inputFields(msg.getItemGroup()));
                     }
                     if (what == RG_UPDATE || what == RG_MANEUVER) {
                         Iap2NotiMsg.Iap2ObjGroup group = msg.getItemGroup();
@@ -242,9 +245,9 @@ public final class Dipo {
                         }
                         String record = raw.toString();
                         if (what == RG_MANEUVER) {
-                            log("TBT 0.1.41 received maneuver" + record);
+                            log("TBT 0.1.46 received maneuver" + record);
                         } else if (!record.equals(lastRouteFields)) {
-                            log("TBT 0.1.41 received route" + record);
+                            log("TBT 0.1.46 received route" + record);
                             lastRouteFields = record;
                         }
                     }

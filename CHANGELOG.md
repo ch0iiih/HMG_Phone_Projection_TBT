@@ -1,5 +1,12 @@
 # Changelog / 변경 내역
 
+## 0.1.46
+
+- Removed model, region, and firmware restrictions from both the HMG-API update and NEMESIS installer.
+- Restricted the native lane fixes to the verified iAP2 library build. CarPlay guidance continues through the existing HMG-API hooks.
+- HMG-API 업데이트와 NEMESIS 최초 설치의 차종·국가·펌웨어 제한을 해제했습니다.
+- 검증된 순정 iAP2 라이브러리에서만 네이티브 차선 보정을 적용합니다. CarPlay 길안내는 기존 HMG-API 훅을 사용합니다.
+
 ## English overview · 0.1.45
 
 Phone Projection TBT is the new project/mod name. CarPlay uses a shared wired/wireless receiver; Android Auto TBT is planned and is not implemented. Existing ID and signer remain compatible. New log name: `phone-projection-tbt.log`.
