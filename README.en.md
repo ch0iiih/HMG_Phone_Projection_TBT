@@ -1,66 +1,60 @@
 # HMG Phone Projection TBT
 
-[English](README.en.md) · [한국어](README.md)
+[English](README.md) · [한국어](README.ko.md)
 
-An HMG-API community mod that sends korean phone navigation guidance to the instrument cluster: current and next turns, remaining trip distance, and lane guidance supplied by the navigation app. HUD output depends on the vehicle; the instrument cluster is the physically tested display on the vehicle listed below.
+An HMG-API community mod that forwards phone navigation guidance to the instrument cluster. It includes separate CarPlay and Android Auto receivers. Output depends on what each navigation app sends and on the vehicle's HMG-API map and cluster.
 
-## Projection support
+This mod does **not** enable wireless projection. Wireless CarPlay or Android Auto must already connect to the head unit.
 
-| Connection | Status |
-| --- | --- |
-| Wired CarPlay | Implemented and tested with NAVER Map |
-| Wireless CarPlay | Uses the same CarPlay guidance listener; the development vehicle has moved to wireless CarPlay. Verification of the latest display changes is ongoing. |
-| Android Auto TBT | **Planned, not implemented in this release** |
+## App and connection support
 
-This mod does not enable wireless phone projection itself. Wireless CarPlay must already work on the head unit, through a separate compatible setup or an adapter.
+Status below distinguishes code paths from vehicle confirmation. “Implemented” means the receiver handles the available app data; it does not promise identical cluster output for every route.
 
-## Tested vehicle and region
+| Projection / app | Current turn | Next turn | Trip distance | Lane data | Latest status and known issues |
+| --- | --- | --- | --- | --- | --- |
+| CarPlay · NAVER Map | Implemented; vehicle-tested | Implemented when the app sends an adjacent maneuver; startup handling improved in 0.1.57 | Implemented when supplied | Implemented; composite-arrow colors supported. Pocket markers need matching fresh factory data | Most complete CarPlay path. Latest startup, lane and facility changes still need a 0.1.58 vehicle retest. Service-area symbol is unresolved; some grade-separated-road details are absent from the phone data. |
+| CarPlay · TMAP | Implemented | Implemented when received; intermittent absence has been reported | Implemented when supplied | Partial: route-usable/recommended directions have been missing; 0.1.55 fixes a recorded straight/left and straight/right mapping case | Tollgate and service-area symbols remain unreliable. Roundabout and lane behavior need app-specific vehicle retesting. |
+| CarPlay · Kakao Navi | Implemented | Implemented when received; startup fallback added in 0.1.57 | Implemented when supplied | App-specific lane output is not verified | A recorded roundabout event stopped TBT output when the angle was absent. 0.1.58 keeps non-directional text/distance instead; this fix has not yet been confirmed in the vehicle. |
+| Android Auto · NAVER Map | Experimental receiver implemented | Receiver handles ahead-turn callbacks, but the tested setup often showed no next turn | Receiver handles trip-distance callbacks; vehicle output is inconsistent/unverified | Lane callback supported; recommended-lane behavior is unverified | User testing reported missing next turn and unreliable remaining distance. Route-stop loading and Korean text were also reported; text decoding was adjusted, but latest vehicle behavior is unverified. |
+| Android Auto · TMAP | Experimental receiver implemented | Receiver handles ahead-turn callbacks; user testing reported no next turn | Receiver handles trip-distance callbacks; vehicle output is unverified | Lane callback supported; recommended-lane behavior is unverified | User testing reported TBT loading and missing next turn. Do not treat as reliable yet. |
+| Android Auto · Kakao Navi | Generic receiver path only | Not tested | Not tested | Not tested | App-specific support and vehicle behavior are unknown. |
+
+### General display behavior
+
+- CarPlay and Android Auto use separate navigation-data receivers and a shared cluster output layer.
+- Lane colors: gray means the direction leaves the route, white means route-usable, and blue means app-recommended. The app must provide enough lane data; the mod does not infer missing recommendations.
+- Factory pocket-lane markers are copied only when recent factory data has a compatible lane count and direction layout.
+- Service-area symbol, tollgate icon, roundabout drawings, and overpass/underpass side-road distinctions are not reliable across apps. Missing app metadata is not guessed.
+
+## Tested vehicle and compatibility
 
 | Region | Vehicle | AVN software |
 | --- | --- | --- |
 | Korea (KOR) | 2023 Hyundai Palisade LX2 PE, factory Gen5W | `LX2PE.KOR.0000.V039.001.260902` |
 
-Other regions, vehicles, clusters and firmware versions are unverified. General turns and roundabouts have been observed in earlier builds. Recent lane changes and the alternative service-area icon still need vehicle verification. Grade-separated-road and unprotected-turn attributes cannot be reconstructed when the phone only sends a generic maneuver.
+Other vehicles, clusters, regions and firmware are unverified. The installer does not restrict model, region or firmware, but this is not a compatibility claim. Requires [HMG-API](https://github.com/VysseCodes/HMG-API) 1.0.2 or later and **Hooks on (map checked)** for the vehicle. Native fixes are guarded to the verified library build.
 
 ## Installation
 
-Requires [HMG-API](https://github.com/VysseCodes/HMG-API) **1.0.2 or later** and **Hooks on (map checked)** for your vehicle.
+- **First install:** install HMG-API first, then install `phone-projection-tbt-0.1.58-nemesis-package.zip` using NEMESIS.
+- **Update an existing TBT installation:** copy `phone-projection-tbt-0.1.58.zip` to USB `HMGAPI/updates/` without extracting it. Remove older Phone Projection TBT update ZIPs. While parked, select **Check USB updates → Apply changes → Restart Unit**.
+- **Source:** `phone-projection-tbt-0.1.58-source.zip` contains the source and host-side regression tests.
 
-Starting with **0.1.46**, both installers accept any model, region, and firmware. Runtime behavior depends on the HMG-API map, DiPO interfaces, and cluster. The native lane fixes require the verified `libiap2session.so` build.
+For NAVER Map on CarPlay, enable its CarPlay HUD integration and select the cluster navigation page. Keep other projection-mod TBT output disabled to avoid duplicate cluster updates. The existing mod ID and signing identity are retained for in-place updates.
 
-- **First installation:** with HMG-API already installed, install `phone-projection-tbt-0.1.46-nemesis-package.zip` through NEMESIS.
-- **Update an existing TBT installation:** copy `phone-projection-tbt-0.1.46.zip` to the USB drive's `HMGAPI/updates/` folder without extracting it. Remove previous TBT update ZIPs. In HMG-API select **Check USB updates → Apply changes → Restart Unit** while parked.
+## Known limitations and unverified behavior
 
-Connect the iPhone using wired or already-working wireless CarPlay and start navigation. For NAVER Map, enable its CarPlay HUD integration and select the navigation page on the cluster.
-
-The displayed name is now **Phone Projection TBT**. The legacy internal mod ID and author signature are unchanged, so the existing installation updates in place. To roll back, disable or remove the mod in HMG-API and apply changes, then restart the head unit.
-
-## Lane display
-
-- **Gray:** direction does not follow the route.
-- **White:** usable direction that follows the route.
-- **Blue:** preferred direction recommended by the navigation app.
-
-Composite arrows keep their separate direction colors. Factory pocket-lane markers are copied only when fresh factory data has matching lane count and compatible directions; phone arrows and recommendations stay unchanged.
-
-## Known limitations
-
-- Service-area display code 183 was physically observed as an exit diagram. The alternative native code 181 is under test; a standalone service-area symbol is **not yet confirmed**.
-- Overpass, underpass and side-road symbols require distinguishable received data. Some NAVER Map screen graphics are not represented in the logged CarPlay maneuver fields.
-- Unprotected left turns remain ordinary left turns when no corresponding attribute is received.
-- Android Auto TBT is a future implementation, not a feature enabled by this project rename.
+- Version 0.1.58 has passed host-side regression checks, compilation and signature verification. The latest Kakao roundabout fallback, upcoming-turn fallback and startup changes still need vehicle confirmation.
+- Android Auto is experimental. Naver Map and TMAP have known user-reported missing next turns; TMAP has shown a loading state. Remaining distance, lane recommendations and stopping guidance need vehicle validation. Kakao on Android Auto has not been tested.
+- The standalone service-area icon has not been confirmed. Code 183 appeared as an exit diagram; 181 and 182 did not produce a confirmed standalone symbol in the tested runs.
+- Tollgates, rest areas, tunnels and grade-separated side roads may arrive as generic maneuvers. A specific pictogram cannot be selected reliably without distinguishable source data.
+- An unprotected-left attribute is shown only if the navigation app sends it.
+- Some lane recommendations or pocket-lane details may not be sent by the app or may lack matching factory data.
 
 ## Report another vehicle or a problem
 
-Open a [GitHub issue](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/issues/new) titled `[region / vehicle code / firmware] symptom`, and include:
-
-- Vehicle, model year, region, cluster type and complete AVN firmware version.
-- HMG-API/mod/iOS/navigation-app versions, and wired/native-wireless/adapter connection type.
-- Expected and actual behavior, reproduction steps, and the time of the event.
-- Logs and, if useful, a photo with the capture time. Create `TBT-LOGS` at the USB root and reconnect the drive to export `phone-projection-tbt.log` and `stock-guidance.log`. Logs may include route text and location; redact personal data before posting.
+Open a [GitHub issue](https://github.com/ch0iiih/HMG_Phone_Projection_TBT/issues/new) titled `[region / vehicle code / firmware] symptom`. Include vehicle year, region, cluster, complete AVN firmware, HMG-API/mod/app versions, connection type, expected and actual output, reproduction steps and event time. Attach logs or timed photos when useful. Logs can include route text and location; redact personal data before posting.
 
 ## Development
 
-See [BUILD.md](BUILD.md) and [CHANGELOG.md](CHANGELOG.md). Android Auto will need its own guidance receiver/conversion path before sharing cluster output functionality.
-
-Licensed under [AGPL-3.0](LICENSE). CarPlay guidance code derives from the Wireless CarPlay + Android Auto mod in [HMG-API](https://github.com/VysseCodes/HMG-API).
+See [BUILD.md](BUILD.md), [CHANGELOG.md](CHANGELOG.md), and [NOTICE.md](NOTICE.md). Licensed under [AGPL-3.0](LICENSE).
