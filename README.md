@@ -1,6 +1,6 @@
 # HMG Phone Projection TBT
 
-[English](README.md) · [한국어](README.ko.md)
+[English](README.en.md) · [한국어](README.md)
 
 폰 내비게이션 길안내를 계기판으로 전달하는 HMG-API 커뮤니티 모드입니다. CarPlay와 Android Auto 수신 경로를 각각 포함합니다. 실제 표시는 지도 앱이 보내는 데이터, 차량의 HMG-API 맵과 계기판에 따라 달라집니다.
 
