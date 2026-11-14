@@ -1,6 +1,6 @@
 # HMG Phone Projection TBT
 
-[English](README.md) · [한국어](README.ko.md)
+[English](README.en.md) · [한국어](README.md)
 
 An HMG-API community mod that forwards phone navigation guidance to the instrument cluster. It includes separate CarPlay and Android Auto receivers. Output depends on what each navigation app sends and on the vehicle's HMG-API map and cluster.
 
